@@ -61,7 +61,7 @@ while 1:
 
             # if the voltage is still low, then continue a low current charge until it goes above 3.1V
             while VBAT / battery_cell_count < 3.1:
-                buck_boost.set_output_voltage(4 * battery_cell_count)
+                buck_boost.set_output_voltage(3.6 * battery_cell_count)
                 time.sleep(30)
                 buck_boost.set_output_voltage(0)
                 time.sleep(5)
@@ -71,6 +71,7 @@ while 1:
         if VBAT / battery_cell_count < 3.6 and VBAT / battery_cell_count > 3.1 :
             charging_current = battery_max_charge_rate * battery_capacity
             buck_boost.set_output_current(charging_current)
+            battery_current = buck_boost.read_output_current()
             
 
 

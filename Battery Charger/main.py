@@ -1,4 +1,10 @@
 from machine import PWM, Pin, ADC
+from numpy import clip
+from time import sleep
+
+# import support files
+import OLED
+import SC8701
 
 # config options:
 SC8701_max_voltage = 15                     # max voltage of buck-boost (in volts) at 100% duty cycle (if you adjust the voltage trimpot, calibrate this!)
@@ -16,23 +22,56 @@ conversion_factor = 3.3 / (65535)
 VBAT = 0
 VIN = 0
 
-# setup PWM control for voltage and current
-VPWM_pin = PWM(Pin(2))
-VPWM_pin.freq(25_000_000_000)               # 25Mhz
-VPWM_pin.duty_u16(0)                        # set duty cycle to zero to ensure no output
+# set up SC8701
+buck_boost = SC8701.SC8701(2, 3, SC8701_max_voltage, SC8701_max_current)
 
-IPWM_pin = PWM(Pin(3))
-IPWM_pin.freq(25_000_000_000)               # 25Mhz
-IPWM_pin.duty_u16(0)                        # set duty cycle to zero to ensure no output
+# set up OLED display
+oled = OLED.OLED()
 
-# set up other input pins
-VBAT_pin = ADC(3)
-VIN_pin = ADC(4)
+while 1:
+    if not charging:
+        # get the VIN and VBAT voltages
+        VBAT = buck_boost.read_battery_voltage()
+        VIN = buck_boost.read_input_voltage()
+        
+        # update the OLED display
+        oled.update(False, VBAT, VIN, 0, 0, 0)
 
-while (1):
-    while (waiting):
-        VBAT = VBAT_pin.read_u16() * conversion_factor
-        VIN = VIN_pin.read_u16() * 
+        if VIN > 5:
+            charging = True
+    
+    else:
+        # get the VIN and VBAT voltages
+        VBAT = buck_boost.read_battery_voltage()
+        VIN = buck_boost.read_input_voltage()
+
+        # start with a small pre-charge to get the battery ready for CC charging
+        if VBAT / battery_cell_count < 3.1:
+            # ramp up the charging voltage slowly over 250 seconds
+            for battery_charge_voltage in range(3.5, 4.0, 0.0005):
+                charging_current = 0.1 * battery_capacity
+                buck_boost.set_output_current(charging_current)
+                buck_boost.set_output_voltage(battery_charge_voltage * battery_cell_count)
+
+                time.sleep(0.25)
+            # stop the precharge and check the cell voltage
+            buck_boost.set_output_voltage(0)
+            time.sleep(5)
+            VBAT = buck_boost.read_battery_voltage()
+
+            # if the voltage is still low, then continue a low current charge until it goes above 3.1V
+            while VBAT / battery_cell_count < 3.1:
+                buck_boost.set_output_voltage(4 * battery_cell_count)
+                time.sleep(30)
+                buck_boost.set_output_voltage(0)
+                time.sleep(5)
+                VBAT = buck_boost.read_battery_voltage()
+
+        # otherwise, begin constant current charge
+        if VBAT / battery_cell_count < 3.6 and VBAT / battery_cell_count > 3.1 :
+            charging_current = battery_max_charge_rate * battery_capacity
+            buck_boost.set_output_current(charging_current)
+            
 
 
 

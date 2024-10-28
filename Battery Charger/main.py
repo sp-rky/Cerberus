@@ -67,11 +67,22 @@ while 1:
                 time.sleep(5)
                 VBAT = buck_boost.read_battery_voltage()
 
-        # otherwise, begin constant current charge
-        if VBAT / battery_cell_count < 3.6 and VBAT / battery_cell_count > 3.1 :
+        # otherwise, begin constant current charge, provided the current isn't too low (i.e. the battery is almost full)
+        if VBAT / battery_cell_count < 3.6 and VBAT / battery_cell_count > 3.1 and battery_current >  0.1 * battery_capacity:
             charging_current = battery_max_charge_rate * battery_capacity
             buck_boost.set_output_current(charging_current)
+            buck_boost.set_output_voltage(3.6 * battery_cell_count)
             battery_current = buck_boost.read_output_current()
+
+        # start charging at a constant voltage when the battery is almost full
+        elif VBAT / battery_cell_count >= 3.6 and battery_current < 0.1 * battery_capacity:
+            buck_boost.set_output_voltage(4.0)
+            buck_boost.set_output_current(0.2 * battery_capacity)
+
+        # Trickle charging once CCCV charging has completed
+        elif VBAT / battery_cell_count > 3.75: 
+            buck_boost.set_output_voltage(3.95)
+            buck_boost.set_output_current(0.02 * battery_capacity)
             
 
 
